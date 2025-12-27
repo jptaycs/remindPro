@@ -1,0 +1,10 @@
+
+{
+  "appId": "com.remindpro.app",
+  "appName": "RemindPro",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

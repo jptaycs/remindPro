@@ -20,9 +20,10 @@ import {
   Activity,
   Filter,
   X,
-  // Added Clock to resolve "Cannot find name 'Clock'" error
   Clock
 } from 'lucide-react';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { Task, Category, Priority, TaskStats } from './types';
 import { CATEGORY_COLORS, CATEGORY_ICONS } from './constants';
 import { TaskItem } from './components/TaskItem';
@@ -54,12 +55,21 @@ const App: React.FC = () => {
   }, [tasks]);
 
   useEffect(() => {
+    const updateStatusBar = async () => {
+      try {
+        await StatusBar.setStyle({ style: darkMode ? Style.Dark : Style.Light });
+      } catch (e) {
+        // Fallback for browser
+      }
+    };
+
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
     localStorage.setItem('remindpro_darkmode', JSON.stringify(darkMode));
+    updateStatusBar();
   }, [darkMode]);
 
   const stats: TaskStats = useMemo(() => {
@@ -104,7 +114,7 @@ const App: React.FC = () => {
     });
   }, [tasks, selectedCalendarDate]);
 
-  const addTask = (taskData: Partial<Task>) => {
+  const addTask = async (taskData: Partial<Task>) => {
     const newTask: Task = {
       id: crypto.randomUUID(),
       title: taskData.title!,
@@ -118,15 +128,24 @@ const App: React.FC = () => {
       isCompleted: false,
       createdAt: new Date().toISOString(),
     } as Task;
+    
     setTasks(prev => [newTask, ...prev]);
+    await Haptics.impact({ style: ImpactStyle.Medium });
   };
 
-  const toggleTask = (id: string) => {
+  const toggleTask = async (id: string) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t));
+    await Haptics.impact({ style: ImpactStyle.Light });
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = async (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
+    await Haptics.impact({ style: ImpactStyle.Heavy });
+  };
+
+  const handleTabChange = async (tab: any) => {
+    setActiveTab(tab);
+    await Haptics.selectionChanged();
   };
 
   const fetchInsights = async () => {
@@ -134,6 +153,7 @@ const App: React.FC = () => {
     const results = await getSmartSuggestions(tasks);
     setSuggestions(results);
     setLoadingSuggestions(false);
+    await Haptics.notification({ type: ImpactStyle.Medium as any });
   };
 
   const businessProgress = useMemo(() => {
@@ -205,7 +225,10 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-indigo-600 dark:bg-indigo-700 p-6 rounded-[32px] text-white shadow-xl shadow-indigo-500/20 active:scale-95 transition-transform cursor-pointer group">
+              <div 
+                onClick={() => handleTabChange('calendar')}
+                className="bg-indigo-600 dark:bg-indigo-700 p-6 rounded-[32px] text-white shadow-xl shadow-indigo-500/20 active:scale-95 transition-transform cursor-pointer group"
+              >
                 <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Active Obligations</p>
                 <div className="flex items-end justify-between mt-2">
                   <span className="text-4xl font-black tracking-tighter">{stats.upcoming}</span>
@@ -213,7 +236,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div 
-                onClick={() => { setTaskFilter('overdue'); setActiveTab('tasks'); }}
+                onClick={() => { setTaskFilter('overdue'); handleTabChange('tasks'); }}
                 className={`p-6 rounded-[32px] shadow-xl transition-all cursor-pointer group active:scale-95 ${stats.overdue > 0 ? 'bg-rose-500 dark:bg-rose-600 text-white shadow-rose-500/20' : 'bg-white dark:bg-ios-darkCard text-gray-900 dark:text-white border border-gray-100 dark:border-white/5 shadow-sm'}`}
               >
                 <p className={`text-[10px] font-black uppercase tracking-widest ${stats.overdue > 0 ? 'opacity-60' : 'text-gray-400 dark:text-gray-500'}`}>Overdue</p>
@@ -250,7 +273,7 @@ const App: React.FC = () => {
             <CalendarView 
               tasks={tasks} 
               selectedDate={selectedCalendarDate} 
-              onSelectDate={setSelectedCalendarDate} 
+              onSelectDate={(d) => { setSelectedCalendarDate(d); Haptics.selectionChanged(); }} 
             />
             
             <div className="space-y-4">
@@ -292,11 +315,11 @@ const App: React.FC = () => {
                   { id: 'all', label: 'All', icon: <ListIcon className="w-3.5 h-3.5" /> },
                   { id: 'high', label: 'Priority', icon: <AlertCircle className="w-3.5 h-3.5" /> },
                   { id: 'overdue', label: 'Overdue', icon: <Clock className="w-3.5 h-3.5" /> },
-                  { id: 'bills', label: 'Bills', icon: <CreditCardIcon className="w-3.5 h-3.5" /> },
+                  { id: 'bills', label: 'Bills', icon: <Activity className="w-3.5 h-3.5" /> },
                 ].map(f => (
                   <button 
                     key={f.id}
-                    onClick={() => setTaskFilter(f.id as any)}
+                    onClick={() => { setTaskFilter(f.id as any); Haptics.selectionChanged(); }}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${taskFilter === f.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' : 'bg-white dark:bg-ios-darkCard text-gray-400 border border-gray-100 dark:border-white/5'}`}
                   >
                     {f.label}
@@ -318,7 +341,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* ... (Insights and Settings Tab remain same as previous version) */}
         {activeTab === 'insights' && (
           <div className="space-y-6 animate-in fade-in duration-500 pb-10">
              <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
@@ -395,7 +417,7 @@ const App: React.FC = () => {
         ].map((tab) => (
           <button 
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => handleTabChange(tab.id as any)}
             className={`flex flex-col items-center gap-1.5 transition-all relative py-2 ${activeTab === tab.id ? 'text-indigo-600 dark:text-indigo-400 scale-105' : 'text-gray-400 dark:text-gray-600'}`}
           >
             {tab.icon}
@@ -409,10 +431,5 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-// Helper Icon components
-// Added missing Clock import in the main import list at the top of the file.
-const ClockIcon = ({ className }: { className?: string }) => <Clock className={className} />;
-const CreditCardIcon = ({ className }: { className?: string }) => <Activity className={className} />;
 
 export default App;
